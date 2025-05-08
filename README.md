@@ -85,9 +85,6 @@ g++ -std=c++17 -pthread -O3 tests/rbtree_stress_test.cpp -o stress
 ```text
 ==== Lock-Based RB-Tree Stress Test ====
 Running on system with 12 hardware threads
-...
-==== Lock-Based RB-Tree Stress Test ====
-Running on system with 12 hardware threads
 
 ======= Running default configuration test =======
 Starting stress test with configuration:
@@ -257,7 +254,6 @@ Validations performed: 20
 Reader throughput (ops/sec): avg=554466.07, min=534759.36, max=578034.68
 Writer throughput (ops/sec): avg=311048.76, min=309597.52, max=312500.00
 
-...
 ==== STRESS TEST PASSED ====
 ```
 </details>
