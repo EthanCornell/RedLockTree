@@ -315,8 +315,11 @@ void writer_thread_func(
             
             // Try to delete from both
             bool success = tree.erase(key);
+            reference.erase(key);
+            stats.total_deletes++;
+            deletes++;
             if (success) {
-                reference.erase(key);
+                // reference.erase(key);
                 successful_deletes++;
                 stats.successful_deletes++;
             }
