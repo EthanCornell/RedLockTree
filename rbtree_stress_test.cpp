@@ -19,7 +19,7 @@
 #include <vector>
 
 // Include the RB-tree implementation
-#include "lock_based_rb_tree.cpp"
+#include "lock_based_rb_tree.hpp"
 
 // Configuration parameters
 struct TestConfig {
