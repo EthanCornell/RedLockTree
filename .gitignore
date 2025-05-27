@@ -1,0 +1,4 @@
+# Editor related
+.vscode/
+
+build/
