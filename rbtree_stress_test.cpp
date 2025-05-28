@@ -21,6 +21,10 @@
 // Include the RB-tree implementation
 #include "lock_based_rb_tree.hpp"
 
+#include "printer.hpp"
+
+util::printer printer(0);
+
 // Configuration parameters
 struct TestConfig {
     size_t num_reader_threads = 8;     // Number of reader threads
@@ -522,11 +526,11 @@ void run_all_tests() {
 }
 
 int main() {
-    std::cout << "==== Lock-Based RB-Tree Stress Test ====\n";
+    util::println("==== Lock-Based RB-Tree Stress Test ====");
     
     // Set up hardware concurrency info
     unsigned int hw_threads = std::thread::hardware_concurrency();
-    std::cout << "Running on system with " << hw_threads << " hardware threads\n";
+    util::println("Running on system with {} hardware threads", hw_threads);
     
     // Run individual test or all tests
     run_all_tests();

@@ -80,7 +80,7 @@ namespace rbt
 
         /*  Constructor – colour defaults to RED for fresh insertions.  */
         explicit Node(const K &k, const V &v,
-                      Color c = Color::RED) : key(k), val(v), color(c) {}
+                      Color c = Color::RED) noexcept : key(k), val(v), color(c) {}
     };
 
     /*-------------------------------------------------------------------------
@@ -109,14 +109,14 @@ namespace rbt
         std::shared_lock<std::shared_mutex> shared; // read phase
         std::unique_lock<std::shared_mutex> unique; // write phase
 
-        explicit UpgradeLock(std::shared_mutex &mtx)
+        explicit UpgradeLock(std::shared_mutex &mtx) noexcept
             : shared(mtx, std::defer_lock), unique(mtx, std::defer_lock)
         {
             shared.lock(); // start in shared (read) mode
         }
 
         /* Switch from shared → unique with minimal window */
-        void upgrade()
+        void upgrade() noexcept
         {
             shared.unlock(); // drop shared
             unique.lock();   // acquire exclusive
