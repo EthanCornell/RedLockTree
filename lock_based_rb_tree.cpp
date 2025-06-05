@@ -11,6 +11,9 @@
 //   This follows the design outlined in UCAM‑CL‑TR‑579 §4.5.2.1.
 //
 //   Build:  g++ -std=c++17 -pthread -O3  -DRBTREE_DEMO  lock_based_rb_tree.cpp -o rbt
+//g++ -std=c++17 -O3 -g -fsanitize=thread -DRBTREE_DEMO lock_based_rb_tree.cpp -o rbt_tsan -pthread
+//g++ -std=c++17 -O3 -g -fsanitize=address -DRBTREE_DEMO lock_based_rb_tree.cpp -o rbt_asan -pthread
+
 
 #include <algorithm>
 #include <cassert>
@@ -191,43 +194,65 @@ namespace rbt
         //
         //  Returns std::nullopt if key not found, otherwise a *copy* of the value.
         // ────────────────────────────────────────────────────────────────────────
-        std::optional<V> lookup(const K &k) const
-        {
-            // 1. Start at root and take a *shared* (read) lock on it.
-            const NodeT *n = root;
-            std::shared_lock<std::shared_mutex> lock_cur(n->rw);
+        // std::optional<V> lookup(const K &k) const
+        // {
+        //     // 1. Start at root and take a *shared* (read) lock on it.
+        //     const NodeT *n = root;
+        //     std::shared_lock<std::shared_mutex> lock_cur(n->rw);
 
-            // 2. Descend until we hit NIL (sentinel) or the target key.
+        //     // 2. Descend until we hit NIL (sentinel) or the target key.
+        //     while (n != NIL)
+        //     {
+        //         if (comp(k, n->key)) // search key < current key → go LEFT
+        //         {
+        //             NodeT *child = n->left;
+
+        //             // Lock child BEFORE releasing parent to maintain the
+        //             // lock-coupling invariant and prevent the path from mutating
+        //             // under our feet.
+        //             std::shared_lock<std::shared_mutex> lock_child(child->rw);
+
+        //             lock_cur.unlock(); // now safe to release parent
+        //             n = child;         // move cursor
+        //             lock_cur = std::move(lock_child);
+        //         }
+        //         else if (comp(n->key, k)) // search key > current key → go RIGHT
+        //         {
+        //             NodeT *child = n->right;
+        //             std::shared_lock<std::shared_mutex> lock_child(child->rw);
+
+        //             lock_cur.unlock();
+        //             n = child;
+        //             lock_cur = std::move(lock_child);
+        //         }
+        //         else // keys are equal → found!
+        //         {
+        //             // make a copy so we can release the lock before returning
+        //             auto v = n->val;
+        //             return v;
+        //         }
+        //     }
+
+        //     // Reached NIL sentinel → key absent
+        //     return std::nullopt;
+        // }
+
+        std::optional<V> lookup(const K &k) const
+        {   
+            // Global shared lock prevents any deletes
+            std::shared_lock<std::shared_mutex> global_guard(global_rw_lock);
+        
+            // Now we can safely traverse without per-node locking
+            const NodeT *n = root;
+        
             while (n != NIL)
             {
-                if (comp(k, n->key)) // search key < current key → go LEFT
-                {
-                    NodeT *child = n->left;
-
-                    // Lock child BEFORE releasing parent to maintain the
-                    // lock-coupling invariant and prevent the path from mutating
-                    // under our feet.
-                    std::shared_lock<std::shared_mutex> lock_child(child->rw);
-
-                    lock_cur.unlock(); // now safe to release parent
-                    n = child;         // move cursor
-                    lock_cur = std::move(lock_child);
-                }
-                else if (comp(n->key, k)) // search key > current key → go RIGHT
-                {
-                    NodeT *child = n->right;
-                    std::shared_lock<std::shared_mutex> lock_child(child->rw);
-
-                    lock_cur.unlock();
-                    n = child;
-                    lock_cur = std::move(lock_child);
-                }
-                else // keys are equal → found!
-                {
-                    // make a copy so we can release the lock before returning
-                    auto v = n->val;
-                    return v;
-                }
+                if (comp(k, n->key))
+                    n = n->left;
+                else if (comp(n->key, k))
+                    n = n->right;
+                else
+                    return n->val; // found
             }
 
             // Reached NIL sentinel → key absent
@@ -254,7 +279,8 @@ namespace rbt
         {
             /* 1. Global serialisation of *writers*.
                Readers never touch this mutex, so they proceed in parallel. */
-            std::unique_lock<std::mutex> writer_guard(writers_mutex);
+            // std::unique_lock<std::mutex> writer_guard(writers_mutex);
+            std::unique_lock<std::shared_mutex> global_guard(global_rw_lock);
 
             /* 2. Create the new RED node (z).  Sentinels used for children. */
             NodeT *z = new NodeT(k, v);
@@ -344,7 +370,8 @@ namespace rbt
         bool erase(const K &k)
         {
             /* 1. Writers exclusive section */
-            std::unique_lock<std::mutex> writer_guard(writers_mutex);
+            // std::unique_lock<std::mutex> writer_guard(writers_mutex);
+            std::unique_lock<std::shared_mutex> global_guard(global_rw_lock);
 
             /* 2. Search for node z with key k  (no locking – readers blocked) */
             NodeT *z = root;
@@ -453,6 +480,8 @@ namespace rbt
          *  • Readers never lock this mutex; they use per-node shared locks, so
          *    multiple lookups proceed fully in parallel. */
         mutable std::mutex writers_mutex;
+
+        mutable std::shared_mutex global_rw_lock;
 
         /*────────────────────────────────────────────────────────────────────────────
          *  destroy_rec
